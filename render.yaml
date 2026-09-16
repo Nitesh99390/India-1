@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: novel-master
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python master.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: MONGO_URI
+        sync: false
+      - key: OWNER_ID
+        sync: false
+
+  - type: web
+    name: novel-worker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python worker.py
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: MONGO_URI
+        sync: false
+      - key: TARGET_LANG
+        value: hi

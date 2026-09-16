@@ -3,6 +3,23 @@ import time
 import requests
 from pymongo import MongoClient
 from deep_translator import GoogleTranslator
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+# --- Render Port Fix (रेंडर को चकमा देने के लिए डमी सर्वर) ---
+def keep_alive():
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Worker is Live!")
+    
+    port = int(os.environ.get('PORT', 10000))
+    server = HTTPServer(('0.0.0.0', port), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+keep_alive()
+# -----------------------------------------------------------
 
 # Environment Variables से चाबियां उठाना
 BOT_TOKEN = os.getenv("BOT_TOKEN")

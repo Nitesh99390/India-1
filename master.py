@@ -2,6 +2,23 @@ import os
 import time
 import telebot
 from pymongo import MongoClient
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+# --- Render Port Fix (रेंडर को चकमा देने के लिए डमी सर्वर) ---
+def keep_alive():
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"Bot is Live!")
+    
+    port = int(os.environ.get('PORT', 10000))
+    server = HTTPServer(('0.0.0.0', port), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+keep_alive()
+# -----------------------------------------------------------
 
 # Environment Variables से चाबियां उठाना
 BOT_TOKEN = os.getenv("BOT_TOKEN")
@@ -20,14 +37,12 @@ def handle_docs(message):
     try:
         file_info = bot.get_file(message.document.file_id)
         
-        # 20MB Limit Check
         if message.document.file_size > 20 * 1024 * 1024:
             return bot.reply_to(message, "❌ फाइल 20MB से बड़ी है। टेलीग्राम बॉट API केवल 20MB तक की फाइलें सपोर्ट करता है।")
             
         if not message.document.file_name.endswith('.txt'):
             return bot.reply_to(message, "❌ अभी के लिए कृपया केवल .txt फाइलें ही भेजें।")
 
-        # काम को डेटाबेस (Queue) में डालना
         job = {
             "chat_id": message.chat.id,
             "file_path": file_info.file_path,

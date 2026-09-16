@@ -6,7 +6,7 @@ from deep_translator import GoogleTranslator
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
-# --- Render Port Fix (रेंडर को चकमा देने के लिए डमी सर्वर) ---
+# --- रेंडर को चकमा देने के लिए डमी सर्वर ---
 def keep_alive():
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
@@ -21,7 +21,6 @@ def keep_alive():
 keep_alive()
 # -----------------------------------------------------------
 
-# Environment Variables से चाबियां उठाना
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
 
@@ -41,7 +40,6 @@ def upload_file(chat_id, file_name):
         requests.post(url, data={'chat_id': chat_id}, files={'document': f})
 
 def translate_text(text):
-    # 4000 अक्षरों के टुकड़ों में बांटना
     chunks = [text[i:i+4000] for i in range(0, len(text), 4000)]
     translated = ""
     for chunk in chunks:
@@ -52,10 +50,9 @@ def translate_text(text):
                 translated += chunk + "\n"
     return translated
 
-print("Worker Server Started... (Waiting for jobs in Queue)")
+print("वर्कर सर्वर चालू हो गया है... (कतार में काम की प्रतीक्षा में)")
 
 while True:
-    # कतार से काम उठाना और उसे 'running' कर देना
     job = queue.find_one_and_update(
         {"status": "queued"}, 
         {"$set": {"status": "running"}},
@@ -68,31 +65,26 @@ while True:
         translated_file = "hi_" + job["file_name"]
         
         try:
-            print(f"Processing job for chat: {chat_id}")
+            print(f"चैट के लिए काम शुरू किया गया: {chat_id}")
             
-            # 1. Download
             download_file(job["file_path"], original_file)
             
-            # 2. Extract & Translate
             with open(original_file, 'r', encoding='utf-8') as f:
                 text = f.read()
             hi_text = translate_text(text)
             
-            # 3. Save
             with open(translated_file, 'w', encoding='utf-8') as f:
                 f.write(hi_text)
                 
-            # 4. Upload
             upload_file(chat_id, translated_file)
             
-            # 5. Cleanup
             queue.update_one({"_id": job["_id"]}, {"$set": {"status": "done"}})
             if os.path.exists(original_file): os.remove(original_file)
             if os.path.exists(translated_file): os.remove(translated_file)
-            print("Job Completed successfully!")
+            print("काम सफलतापूर्वक पूरा हो गया!")
             
         except Exception as e:
-            print(f"Error processing job: {e}")
+            print(f"काम करने में त्रुटि आई: {e}")
             queue.update_one({"_id": job["_id"]}, {"$set": {"status": "failed", "error": str(e)}})
             if os.path.exists(original_file): os.remove(original_file)
             if os.path.exists(translated_file): os.remove(translated_file)

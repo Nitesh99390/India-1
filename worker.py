@@ -4,6 +4,7 @@ import requests
 from pymongo import MongoClient
 from deep_translator import GoogleTranslator
 
+# Environment Variables से चाबियां उठाना
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
 
@@ -23,18 +24,21 @@ def upload_file(chat_id, file_name):
         requests.post(url, data={'chat_id': chat_id}, files={'document': f})
 
 def translate_text(text):
-    # 4000 अक्षरों के टुकड़ों में बांटना (Google Translate की लिमिट से बचने के लिए)
+    # 4000 अक्षरों के टुकड़ों में बांटना
     chunks = [text[i:i+4000] for i in range(0, len(text), 4000)]
     translated = ""
     for chunk in chunks:
         if chunk.strip():
-            translated += translator.translate(chunk) + "\n"
+            try:
+                translated += translator.translate(chunk) + "\n"
+            except:
+                translated += chunk + "\n"
     return translated
 
-print("Worker Server Started... Waiting for jobs.")
+print("Worker Server Started... (Waiting for jobs in Queue)")
 
 while True:
-    # MongoDB से कतार में लगा पहला काम उठाएं और उसे 'running' कर दें (ताकि दूसरा VPS इसे न उठाए)
+    # कतार से काम उठाना और उसे 'running' कर देना
     job = queue.find_one_and_update(
         {"status": "queued"}, 
         {"$set": {"status": "running"}},
@@ -61,18 +65,19 @@ while True:
             with open(translated_file, 'w', encoding='utf-8') as f:
                 f.write(hi_text)
                 
-            # 4. Upload to Telegram
+            # 4. Upload
             upload_file(chat_id, translated_file)
             
-            # 5. Mark as done & Cleanup
+            # 5. Cleanup
             queue.update_one({"_id": job["_id"]}, {"$set": {"status": "done"}})
-            os.remove(original_file)
-            os.remove(translated_file)
-            print("Job Completed!")
+            if os.path.exists(original_file): os.remove(original_file)
+            if os.path.exists(translated_file): os.remove(translated_file)
+            print("Job Completed successfully!")
             
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error processing job: {e}")
             queue.update_one({"_id": job["_id"]}, {"$set": {"status": "failed", "error": str(e)}})
+            if os.path.exists(original_file): os.remove(original_file)
+            if os.path.exists(translated_file): os.remove(translated_file)
     else:
-        # अगर कोई काम नहीं है, तो 3 सेकंड इंतज़ार करें
         time.sleep(3)
